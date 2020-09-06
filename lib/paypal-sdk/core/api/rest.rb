@@ -29,38 +29,32 @@ module PayPal::SDK::Core
 
       # Clear cached values.
       def set_config(*args)
-        @token_uri = nil
-        @token_hash = nil
         super
       end
 
       # URI object token endpoint
       def token_uri
-        @token_uri ||=
-          begin
-            new_uri = URI.parse(token_endpoint)
-            new_uri.path = "/v1/oauth2/token" if new_uri.path =~ /^\/?$/
-            new_uri
-          end
+        begin
+          new_uri = URI.parse(token_endpoint)
+          new_uri.path = "/v1/oauth2/token" if new_uri.path =~ /^\/?$/
+          new_uri
+        end
       end
 
       # Generate Oauth token or Get cached
       def token_hash(auth_code=nil, headers=nil)
-        validate_token_hash
-        @token_hash ||=
-          begin
-            @token_request_at = Time.now
-            basic_auth = ["#{config.client_id}:#{config.client_secret}"].pack('m').delete("\r\n")
-            token_headers = default_http_header.merge({
-              "Content-Type"  => "application/x-www-form-urlencoded",
-              "Authorization" => "Basic #{basic_auth}" }).merge(headers)
-            if auth_code != nil
-              TOKEN_REQUEST_PARAMS.replace "grant_type=authorization_code&response_type=token&redirect_uri=urn%3Aietf%3Awg%3Aoauth%3A2.0%3Aoob&code="
-              TOKEN_REQUEST_PARAMS << auth_code
-            end
-            response = http_call( :method => :post, :uri => token_uri, :body => TOKEN_REQUEST_PARAMS, :header => token_headers )
-            MultiJson.load(response.body, :symbolize_keys => true)
+        begin
+          basic_auth = ["#{config.client_id}:#{config.client_secret}"].pack('m').delete("\r\n")
+          token_headers = default_http_header.merge({
+            "Content-Type"  => "application/x-www-form-urlencoded",
+            "Authorization" => "Basic #{basic_auth}" }).merge(headers)
+          if auth_code != nil
+            TOKEN_REQUEST_PARAMS.replace "grant_type=authorization_code&response_type=token&redirect_uri=urn%3Aietf%3Awg%3Aoauth%3A2.0%3Aoob&code="
+            TOKEN_REQUEST_PARAMS << auth_code
           end
+          response = http_call( :method => :post, :uri => token_uri, :body => TOKEN_REQUEST_PARAMS, :header => token_headers )
+          MultiJson.load(response.body, :symbolize_keys => true)
+        end
       end
       attr_writer :token_hash
 
@@ -76,16 +70,7 @@ module PayPal::SDK::Core
 
       # token setter
       def token=(new_token)
-        @token_hash = { :access_token => new_token, :token_type => "Bearer" }
-      end
-
-      # Check token expired or not
-      def validate_token_hash
-        if @token_request_at and
-            @token_hash and @token_hash[:expires_in] and
-            (Time.now - @token_request_at) > @token_hash[:expires_in].to_i
-          @token_hash = nil
-        end
+        { :access_token => new_token, :token_type => "Bearer" }
       end
 
       # Override the API call to handle Token Expire
@@ -94,9 +79,7 @@ module PayPal::SDK::Core
         begin
           response = super(payload)
         rescue UnauthorizedAccess => error
-          if @token_hash and config.client_id
-            # Reset cached token and Retry api request
-            @token_hash = nil
+          if token_hash and config.client_id
             response = super(backup_payload)
           else
             raise error
