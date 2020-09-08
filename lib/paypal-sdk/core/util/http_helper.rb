@@ -83,7 +83,7 @@ module PayPal::SDK::Core
       def log_http_call(payload)
         logger.info "Request[#{payload[:method]}]: #{payload[:uri].to_s}"
 
-        logger.debug "Request.body=#{payload[:body]}\trequest.header=#{payload[:header]}"
+        logger.info "Request.body=#{payload[:body]}\trequest.header=#{payload[:header]}"
 
         start_time = Time.now
         response = yield
